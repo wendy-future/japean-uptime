@@ -1,0 +1,51 @@
+{
+  "sslHost": "www.japean.com",
+  "sslWarnDays": 14,
+  "latencyWarnMs": 12000,
+  "checks": [
+    {
+      "name": "Accueil",
+      "url": "https://www.japean.com/",
+      "expectStatus": 200,
+      "mustContain": ["Mode japonaise"],
+      "mustNotContain": ["Internal Server Error", "Fatal error", "Whoops", "Nous revenons", "We'll be back"],
+      "mustNotMatch": ["catalog-card__price\"[^>]*>\\s*0,00"]
+    },
+    {
+      "name": "Categorie kimonos homme",
+      "url": "https://www.japean.com/158-kimonos-homme",
+      "expectStatus": 200,
+      "mustContain": ["Kimonos homme"],
+      "mustNotContain": ["Internal Server Error", "Fatal error", "Whoops"],
+      "mustNotMatch": ["catalog-card__price\"[^>]*>\\s*0,00"]
+    },
+    {
+      "name": "Fiche Carpe Koi",
+      "url": "https://www.japean.com/kimonos-homme/4390-16696-kimono-homme-carpe-koi.html",
+      "expectStatus": 200,
+      "mustContain": ["Ajouter au panier"],
+      "mustNotContain": ["Internal Server Error", "Fatal error", "Whoops"]
+    },
+    {
+      "name": "Fiche Ensemble Anthracite",
+      "url": "https://www.japean.com/kimonos-homme/4402-ensemble-kimono-gris-anthracite.html",
+      "expectStatus": 200,
+      "mustContain": ["Ajouter au panier"],
+      "mustNotContain": ["Internal Server Error", "Fatal error", "Whoops"]
+    },
+    {
+      "name": "Panier",
+      "url": "https://www.japean.com/panier?action=show",
+      "expectStatus": 200,
+      "mustContain": ["Continuer mes achats"],
+      "mustNotContain": ["Internal Server Error", "Fatal error", "Whoops"]
+    },
+    {
+      "name": "Back-office (login)",
+      "url": "https://www.japean.com/admin-dev/",
+      "expectStatus": 200,
+      "mustContain": [],
+      "mustNotContain": ["Internal Server Error", "Fatal error", "Whoops"]
+    }
+  ]
+}
