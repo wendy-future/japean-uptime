@@ -1,0 +1,31 @@
+name: Japean purge base
+
+on:
+  schedule:
+    # 03h17 UTC = 05h17 à Paris en été : trafic quasi nul, et décalé de l'heure pile
+    # pour éviter la file d'attente de GitHub.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: japean-purge
+  cancel-in-progress: false
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Purge des tables de logs et du cache de filtres
+        env:
+          JAPEAN_PURGE_URL: ${{ secrets.JAPEAN_PURGE_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: node purge.mjs
