@@ -1,0 +1,30 @@
+name: Japean bilan sante hebdo
+
+on:
+  schedule:
+    # 05h33 UTC = 07h33 a Paris en ete, chaque lundi. Minute decalee (file GitHub).
+    - cron: '33 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: japean-health
+  cancel-in-progress: false
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Bilan sante hebdo (bloc A) et notification Discord
+        env:
+          JAPEAN_HEALTH_URL: ${{ secrets.JAPEAN_HEALTH_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: node health.mjs
