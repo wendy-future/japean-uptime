@@ -1,0 +1,31 @@
+name: Japean merchandising hebdo
+
+on:
+  schedule:
+    # 05h47 UTC = 07h47 a Paris en ete, chaque lundi (apres le bilan sante de 05h33).
+    - cron: '47 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: japean-merch
+  cancel-in-progress: false
+
+jobs:
+  merch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Scores v2.1 + positions (vues Matomo incluses) et notification Discord
+        env:
+          JAPEAN_MERCH_URL: ${{ secrets.JAPEAN_MERCH_URL }}
+          MATOMO_TOKEN: ${{ secrets.MATOMO_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: node merch.mjs
