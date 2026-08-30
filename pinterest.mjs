@@ -43,7 +43,13 @@ let httpStatus = 0;
 let erreur = null;
 
 try {
-  const r = await fetch(URL_PIN, { method: 'POST', signal: AbortSignal.timeout(290000) });
+  // User-Agent identifie : sans lui, Cloudflare sert un challenge "Just a moment" au runner
+  // (meme contrainte que merch.mjs).
+  const r = await fetch(URL_PIN, {
+    method: 'POST',
+    headers: { 'User-Agent': 'JapeanMonitor/1.0 (+pinterest)' },
+    signal: AbortSignal.timeout(290000),
+  });
   httpStatus = r.status;
   const txt = await r.text();
   try { data = JSON.parse(txt); } catch { erreur = 'reponse illisible : ' + txt.slice(0, 200); }
