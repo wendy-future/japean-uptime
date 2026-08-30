@@ -20,7 +20,7 @@ async function vuesMatomo() {
     // curl plutot que fetch : l'undici de Node echoue sur cet hote depuis les runners
     // (IPv6 sans repli) ; curl gere le double stack proprement.
     const { spawnSync } = await import('node:child_process');
-    const cr = spawnSync('curl', ['-sS', '--max-time', '120', '-X', 'POST',
+    const cr = spawnSync('curl', ['-sS', '--http1.1', '--max-time', '120', '-X', 'POST',
       'https://stats.1-1.fr/index.php',
       '-H', 'User-Agent: JapeanMonitor/1.0 (+merch)',
       '--data-urlencode', 'module=API', '--data-urlencode', 'method=Actions.getPageUrls',
