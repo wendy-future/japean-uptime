@@ -17,18 +17,20 @@ const MATOMO_TOKEN = process.env.MATOMO_TOKEN || '';
 async function vuesMatomo() {
   if (!MATOMO_TOKEN) { console.log('vues: MATOMO_TOKEN absent'); return null; }
   try {
-    const r = await fetch('https://stats.1-1.fr/index.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'JapeanMonitor/1.0 (+merch)' },
-      body: new URLSearchParams({
-        module: 'API', method: 'Actions.getPageUrls', idSite: '2',
-        period: 'range', date: 'last90', format: 'JSON', flat: '1',
-        filter_limit: '-1', token_auth: MATOMO_TOKEN,
-      }),
-      signal: AbortSignal.timeout(120000),
-    });
-    if (r.status !== 200) { console.log('vues: matomo HTTP ' + r.status); return null; }
-    const rows = await r.json();
+    // curl plutot que fetch : l'undici de Node echoue sur cet hote depuis les runners
+    // (IPv6 sans repli) ; curl gere le double stack proprement.
+    const { spawnSync } = await import('node:child_process');
+    const cr = spawnSync('curl', ['-sS', '--max-time', '120', '-X', 'POST',
+      'https://stats.1-1.fr/index.php',
+      '-H', 'User-Agent: JapeanMonitor/1.0 (+merch)',
+      '--data-urlencode', 'module=API', '--data-urlencode', 'method=Actions.getPageUrls',
+      '--data-urlencode', 'idSite=2', '--data-urlencode', 'period=range',
+      '--data-urlencode', 'date=last90', '--data-urlencode', 'format=JSON',
+      '--data-urlencode', 'flat=1', '--data-urlencode', 'filter_limit=-1',
+      '--data-urlencode', 'token_auth=' + MATOMO_TOKEN,
+    ], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    if (cr.status !== 0) { console.log('vues: curl code ' + cr.status + ' ' + String(cr.stderr).slice(0, 120)); return null; }
+    const rows = JSON.parse(cr.stdout);
     if (!Array.isArray(rows)) { console.log('vues: reponse matomo inattendue'); return null; }
     const vues = {};
     for (const row of rows) {
