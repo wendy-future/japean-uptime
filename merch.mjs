@@ -76,6 +76,8 @@ try {
   erreur = e.message;
 }
 
+if (erreur) console.log('erreur endpoint : ' + erreur);
+if (data) console.log('reponse endpoint : ok=' + data.ok + (data.err ? ' err=' + data.err : ''));
 if (erreur || !data || !data.ok) {
   await discord({
     title: 'Merchandising hebdo — ECHEC',
