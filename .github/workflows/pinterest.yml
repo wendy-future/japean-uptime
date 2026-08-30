@@ -1,0 +1,30 @@
+name: Japean flux Pinterest quotidien
+
+on:
+  schedule:
+    # 04h32 UTC = 06h32 a Paris en ete. Avant l'ouverture, apres les eventuels imports de nuit.
+    - cron: '32 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: japean-pinterest
+  cancel-in-progress: false
+
+jobs:
+  pinterest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Regenerer le flux catalogue et notifier Discord
+        env:
+          JAPEAN_PINTEREST_URL: ${{ secrets.JAPEAN_PINTEREST_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: node pinterest.mjs
