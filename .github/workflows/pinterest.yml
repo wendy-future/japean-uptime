@@ -2,8 +2,9 @@ name: Japean flux Pinterest quotidien
 
 on:
   schedule:
-    # 04h32 UTC = 06h32 a Paris en ete. Avant l'ouverture, apres les eventuels imports de nuit.
-    - cron: '32 4 * * *'
+    # 21h30 UTC = 23h30 a Paris en ete. Pinterest ingere le flux chaque nuit vers 22h43 UTC
+    # (00h43 Paris) : on regenere ~1h avant pour qu'il lise toujours un fichier du jour.
+    - cron: '30 21 * * *'
   workflow_dispatch:
 
 permissions:
