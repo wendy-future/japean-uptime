@@ -57,16 +57,46 @@ async function runCheck(c) {
   } finally { clearTimeout(timer); }
 }
 
-function sslDaysLeft(host) {
+// Renvoie { jours, erreur }. ATTENTION : un echec de connexion n'est PAS un succes —
+// c'est justement ce qui avait masque l'expiration du certificat du chat le 09/09/2026.
+function sslEtat(host) {
   return new Promise((resolve) => {
     const sock = tls.connect({ host, port: 443, servername: host, timeout: 10000 }, () => {
       const cert = sock.getPeerCertificate();
       sock.end();
-      resolve(cert && cert.valid_to ? Math.floor((new Date(cert.valid_to) - new Date()) / 86400000) : null);
+      if (!cert || !cert.valid_to) return resolve({ jours: null, erreur: 'certificat illisible' });
+      resolve({ jours: Math.floor((new Date(cert.valid_to) - new Date()) / 86400000), erreur: null });
     });
-    sock.on('error', () => resolve(null));
-    sock.on('timeout', () => { sock.destroy(); resolve(null); });
+    sock.on('error', (e) => resolve({ jours: null, erreur: e.message || 'connexion refusee' }));
+    sock.on('timeout', () => { sock.destroy(); resolve({ jours: null, erreur: 'timeout TLS' }); });
   });
+}
+
+// Chat d'assistance : le widget est-il encore capable de recevoir des messages,
+// et des clients attendent-ils une reponse depuis trop longtemps ?
+async function etatChat(conf) {
+  if (!conf || !conf.healthUrl) return null;
+  const seuilSilence = conf.silenceAlerteHeures || 48;
+  const seuilAttente = conf.attenteAlerteHeures || 24;
+  try {
+    const r = await fetch(conf.healthUrl, {
+      headers: { 'User-Agent': 'JapeanMonitor/1.1 (+chat)' },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!r.ok) return { ok: false, raisons: [`endpoint du chat en HTTP ${r.status}`], cause: 'injoignable' };
+    const d = await r.json();
+    const raisons = [];
+    if (d.silenceHeures !== null && d.silenceHeures !== undefined && d.silenceHeures >= seuilSilence) {
+      raisons.push(`aucun message recu depuis ${d.silenceHeures} h (le widget n'envoie peut-etre plus rien)`);
+    }
+    if ((d.attenteMaxHeures || 0) >= seuilAttente) {
+      raisons.push(`${d.sansReponse} message(s) sans reponse, le plus ancien depuis ${d.attenteMaxHeures} h`);
+    }
+    return { ok: raisons.length === 0, raisons, data: d, cause: raisons.length ? 'silence' : null };
+  } catch (e) {
+    // Certificat expire, DNS, proxy : le client verrait exactement la meme chose.
+    return { ok: false, raisons: [`chat injoignable : ${e.message}`], cause: 'injoignable' };
+  }
 }
 
 async function discord(payload) {
@@ -123,8 +153,14 @@ if (process.env.TEST_ALERT === '1') {
 const results = {};
 for (const c of CONFIG.checks) results[c.name] = await runCheck(c);
 
-const ssl = await sslDaysLeft(CONFIG.sslHost);
-const sslOk = ssl === null ? true : ssl > (CONFIG.sslWarnDays || 14);
+const hotesSsl = CONFIG.sslHosts || (CONFIG.sslHost ? [CONFIG.sslHost] : []);
+const seuilJours = CONFIG.sslWarnDays || 14;
+const ssl = {};
+for (const h of hotesSsl) {
+  const e = await sslEtat(h);
+  ssl[h] = { ...e, ok: e.erreur ? false : e.jours > seuilJours };
+}
+const chat = await etatChat(CONFIG.chat);
 
 // --- Transitions d'état ---
 const down = [], up = [], newState = {};
@@ -135,8 +171,8 @@ for (const c of CONFIG.checks) {
   if (!r.ok && was === 'ok') down.push({ c, r });
   if (r.ok && was === 'down') up.push({ c, r });
 }
-newState.__ssl = sslOk ? 'ok' : 'warn';
-const sslWas = prev.__ssl || 'ok';
+for (const h of hotesSsl) newState['__ssl:' + h] = ssl[h].ok ? 'ok' : 'warn';
+if (chat) newState.__chat = chat.ok ? 'ok' : 'down';
 
 const embeds = [];
 if (down.length) embeds.push({
@@ -152,8 +188,47 @@ if (up.length) embeds.push({
   description: up.map(({ c }) => `**${c.name}** de nouveau OK\n${c.url}`).join('\n\n'),
   timestamp: iso(),
 });
-if (!sslOk && sslWas === 'ok') embeds.push({ title: '⚠️ Japean — certificat SSL bientôt expiré', color: 16776960, description: `Le certificat de ${CONFIG.sslHost} expire dans ${ssl} jours.`, timestamp: iso() });
-if (sslOk && sslWas === 'warn') embeds.push({ title: '🟢 Japean — SSL renouvelé', color: 3066993, description: `Certificat de ${CONFIG.sslHost} de nouveau valide.`, timestamp: iso() });
+// Certificats : une alerte par hote, sur transition uniquement.
+for (const h of hotesSsl) {
+  const e = ssl[h];
+  const avant = prev['__ssl:' + h] || 'ok';
+  if (!e.ok && avant === 'ok') {
+    const quoi = e.erreur
+      ? `**Impossible de lire le certificat de ${h}** : ${e.erreur}.
+Un navigateur verrait la meme erreur, donc le service est probablement inaccessible aux visiteurs.`
+      : `Le certificat de **${h}** expire dans **${e.jours} jours**.`;
+    embeds.push({
+      title: '⚠️ Japean — probleme de certificat',
+      color: 16776960,
+      description: quoi + `
+🛠️ **Piste : le renouvellement automatique des certificats est desactive sur le compte cPanel. Passer le sous-domaine en proxifie Cloudflare (mode SSL full) regle le probleme durablement.**`,
+      timestamp: iso(),
+    });
+  }
+  if (e.ok && avant === 'warn') {
+    embeds.push({ title: '🟢 Japean — certificat OK', color: 3066993, description: `Certificat de **${h}** de nouveau valide (${e.jours} jours restants).`, timestamp: iso() });
+  }
+}
+// Chat d'assistance : silence anormal, ou clients laisses sans reponse.
+if (chat) {
+  const avant = prev.__chat || 'ok';
+  if (!chat.ok && avant === 'ok') {
+    const piste = chat.cause === 'injoignable'
+      ? 'Le widget ne peut plus envoyer les messages. Verifier le certificat de support.japean.com et que le bot tourne (pm2).'
+      : 'Soit plus personne ne nous ecrit (peu probable), soit le widget est casse cote site. Ouvrir japean.com et tester la bulle.';
+    embeds.push({
+      title: '🔴 Japean — chat d assistance',
+      color: 15158332,
+      description: chat.raisons.map((r) => '• ' + r).join(`
+`) + `
+🛠️ **Piste :** ${piste}`,
+      timestamp: iso(),
+    });
+  }
+  if (chat.ok && avant === 'down') {
+    embeds.push({ title: '🟢 Japean — chat de nouveau normal', color: 3066993, description: 'Messages recus normalement et aucun client en attente prolongee.', timestamp: iso() });
+  }
+}
 
 if (embeds.length) await discord({ username: 'Japean Monitor', embeds });
 
@@ -165,5 +240,12 @@ for (const c of CONFIG.checks) {
   const r = results[c.name];
   console.log(`${r.ok ? 'OK ' : 'KO '} ${c.name.padEnd(26)} ${String(r.status).padStart(3)} ${String(r.ms).padStart(6)}ms ${r.reasons.join(' · ')}`);
 }
-console.log(`SSL ${CONFIG.sslHost}: ${ssl === null ? 'n/a' : ssl + ' j'}${sslOk ? '' : ' (ALERTE)'}`);
+for (const h of hotesSsl) {
+  const e = ssl[h];
+  console.log(`SSL ${h.padEnd(22)}: ${e.erreur ? 'ERREUR ' + e.erreur : e.jours + ' j'}${e.ok ? '' : '  <-- ALERTE'}`);
+}
+if (chat) {
+  const d = chat.data || {};
+  console.log(`CHAT ${chat.ok ? 'OK' : 'KO'} | silence ${d.silenceHeures ?? 'n/a'} h | sans reponse ${d.sansReponse ?? 'n/a'} | attente max ${d.attenteMaxHeures ?? 'n/a'} h ${(chat.raisons || []).join(' . ')}`);
+}
 console.log(Object.values(results).some((r) => !r.ok) ? 'STATUT GLOBAL: DÉGRADÉ' : 'STATUT GLOBAL: OK');
