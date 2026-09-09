@@ -2,9 +2,9 @@ name: Japean flux Google Shopping quotidien
 
 on:
   schedule:
-    # 04h15 UTC = 06h15 a Paris en ete. Merchant Center est regle pour recuperer le CSV
-    # chaque jour a 07h00 Paris : le fichier lu a toujours moins d'une heure.
-    - cron: '15 4 * * *'
+    # 02h15 UTC = 04h15 a Paris en ete. Merchant Center est regle pour recuperer le CSV
+    # chaque jour a 05h00 Paris : le fichier lu a moins d'une heure.
+    - cron: '15 2 * * *'
   workflow_dispatch:
 
 permissions:
