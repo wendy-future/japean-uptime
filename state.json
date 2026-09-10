@@ -5,5 +5,7 @@
   "Fiche Ensemble Anthracite": "ok",
   "Panier": "ok",
   "Back-office (login)": "ok",
-  "__ssl": "ok"
+  "__ssl:www.japean.com": "ok",
+  "__ssl:support.japean.com": "ok",
+  "__chat": "down"
 }
