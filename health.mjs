@@ -76,6 +76,14 @@ if (d) {
     alertes.push('corruptions produit : ps_shop=' + c.ps_shop_zero + ' cache_attr=' + c.cache_attr_actifs + ' descNULL=' + c.desc_null_lang1);
   }
   lignes.push('Catalogue : ' + d.produits_actifs + ' actifs, ' + d.actifs_sans_stock + ' sans stock');
+  // Service client : des clients attendent-ils une reponse ?
+  // Ajoute le 10/09/2026 : 4 clients avaient attendu jusqu'a 8 jours sans que rien ne le signale.
+  const sav = d.sav_sans_reponse || 0;
+  const savH = d.sav_attente_max_h || 0;
+  if (savH >= 48) alertes.push(sav + ' message(s) client sans reponse, le plus ancien depuis ' + savH + ' h');
+  else if (savH >= 24) avert.push(sav + ' message(s) client sans reponse depuis ' + savH + ' h');
+  lignes.push('Service client : ' + sav + ' sans reponse' + (savH ? ' (le plus ancien : ' + savH + ' h)' : ''));
+
   // Tables de logs (purge quotidienne efficace ?)
   const t = d.tables || {};
   if (t.connections > 100000 || t.guest > 100000) avert.push('tables tracking regonflent (connections=' + t.connections + ')');
