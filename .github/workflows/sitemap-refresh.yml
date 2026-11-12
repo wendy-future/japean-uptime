@@ -1,0 +1,22 @@
+name: Japean sitemap refresh
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: japean-sitemap-refresh
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Preview, verify public URL changes, apply and verify XML
+        env:
+          JAPEAN_SITEMAP_TOKEN: ${{ secrets.JAPEAN_SITEMAP_TOKEN }}
+        run: python3 refresh_sitemaps.py
